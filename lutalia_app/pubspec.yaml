@@ -1,0 +1,150 @@
+name: lutalia
+description: "Lutalia – A poetic lifestyle app."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ⭐ FemBalance / Kalender
+  table_calendar: ^3.0.9
+  shared_preferences: ^2.2.2
+
+  cupertino_icons: ^1.0.8
+
+  # ✨ Video Player
+  video_player: ^2.8.2
+
+  # ✨ WebView für Shopify
+  webview_flutter: ^4.13.1
+
+  # ✨ Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.3
+
+  # ✨ Image Picker
+  image_picker: ^1.1.2
+
+  # ✨ OpenFoodFacts
+  openfoodfacts: ^3.30.2
+
+  # ✨ Barcode Scanner
+  mobile_scanner: ^3.5.5
+
+  # ✨ HTTP & HTML Rendering (für WordPress Rezepte)
+  http: ^1.2.1
+  flutter_html: ^3.0.0-beta.2
+
+  # ✨ Path Provider
+  path_provider: ^2.1.2
+
+  # ✨ Diagramme (für Wasserkurve)
+  fl_chart: ^0.69.0
+
+  # ✨ Verschlüsselung
+  flutter_secure_storage: ^9.0.0
+  encrypt: ^5.0.1
+
+  # ✨ Datum & Kalender
+  intl: ^0.19.0
+
+  # ✨ Biometrie
+  local_auth: ^3.0.0
+  local_auth_android: ^2.0.0
+
+  # ✨ IDs für Tagebuch-Einträge
+  uuid: ^4.5.0
+
+  # ✨ Schreibmaschinen-Animation
+  animated_text_kit: ^4.2.2
+
+  # ✨ AUDIO
+  flutter_sound: ^9.2.13
+
+  # ✨ PERMISSIONS
+  permission_handler: ^11.3.1
+
+  # ✨ HEALTH (Apple Health + Health Connect)
+  health: ^13.3.1
+
+  # ✨ Wasser-Reminder (NEU)
+  flutter_local_notifications: ^17.0.0
+
+  # ✨ Zeitzonen für Reminder (NEU)
+  timezone: ^0.9.2
+  flutter_widget_from_html: ^0.17.4
+  html: ^0.15.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # ✨ App Icon Generator
+  flutter_launcher_icons: ^0.13.1
+
+  # ✨ Native Splashscreen
+  flutter_native_splash: ^2.4.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/
+    - assets/logo/
+    - assets/images/
+    - assets/images/meilensteine.png   # <-- HIER ERGÄNZT
+    - assets/images/obst/
+    - assets/data/
+    - assets/images/sparkle_star.png
+    - assets/images/lutalia_start.png
+
+    # ⭐ VIDEOS
+    - assets/videos/Weil-es-gluecklich-macht.mp4
+    - assets/videos/tagebuch_video.mp4
+    - assets/videos/gesundheitsscreen.mp4
+
+    # ⭐ BILDER & LOTUS
+    - assets/flowers/
+    - assets/fee/
+    - assets/fee/sticker/
+    - assets/lotus/
+
+  fonts:
+    - family: Cinzel
+      fonts:
+        - asset: assets/fonts/Cinzel-Regular.ttf
+        - asset: assets/fonts/Cinzel-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Cinzel-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Cinzel-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Cinzel-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Cinzel-Black.ttf
+          weight: 900
+
+    - family: NewFirst
+      fonts:
+        - asset: assets/fonts/Newfirst.ttf
+        - asset: assets/fonts/Newfirst Swash.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#F5EFE6"
+  image: assets/images/lutalia_start.png
+  android: true
+  ios: true

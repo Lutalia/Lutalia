@@ -1,0 +1,42 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // Google Services (Firebase)
+        classpath "com.google.gms:google-services:4.4.4"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// ⭐ Java 17 für alle Module aktivieren
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}
+
+// ⭐ Build-Ordner sauber umleiten (Flutter optimiert)
+def newBuildDir = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.set(newBuildDir)
+
+subprojects {
+    def newSubprojectBuildDir = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.set(newSubprojectBuildDir)
+}
+
+// ⭐ Sicherstellen, dass :app zuerst ausgewertet wird
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+// ⭐ Clean-Task
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "319740045383",
+    "project_id": "lutalia-484b4",
+    "storage_bucket": "lutalia-484b4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:319740045383:android:6b2f5d2004dcf7c3f52962",
+        "android_client_info": {
+          "package_name": "com.example.lutalia_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfEYsx4y6yoR-39eMBFEUntFBQUNTJE88"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
