@@ -1,1 +1,1 @@
-Lutalia Projekt – erster Test
+Lutalia Projekt 
