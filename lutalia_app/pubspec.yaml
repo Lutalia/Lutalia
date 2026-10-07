@@ -74,10 +74,10 @@ dependencies:
   # ✨ HEALTH (Apple Health + Health Connect)
   health: ^13.3.1
 
-  # ✨ Wasser-Reminder (NEU)
+  # ✨ Wasser- & Pillen-Reminder
   flutter_local_notifications: ^17.0.0
 
-  # ✨ Zeitzonen für Reminder (NEU)
+  # ✨ Zeitzonen für Reminder
   timezone: ^0.9.2
   flutter_widget_from_html: ^0.17.4
   html: ^0.15.7
@@ -100,11 +100,13 @@ flutter:
     - assets/fonts/
     - assets/logo/
     - assets/images/
-    - assets/images/meilensteine.png   # <-- HIER ERGÄNZT
+    - assets/images/meilensteine.png
     - assets/images/obst/
     - assets/data/
     - assets/images/sparkle_star.png
     - assets/images/lutalia_start.png
+    # Falls iconapp.png im Hauptverzeichnis unter assets/ liegt:
+    - assets/iconapp.png
 
     # ⭐ VIDEOS
     - assets/videos/Weil-es-gluecklich-macht.mp4
@@ -135,12 +137,14 @@ flutter:
     - family: NewFirst
       fonts:
         - asset: assets/fonts/Newfirst.ttf
+          weight: 400
         - asset: assets/fonts/Newfirst Swash.ttf
+          weight: 400
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/app_icon.png"
+  image_path: "assets/iconapp.png"
   min_sdk_android: 21
 
 flutter_native_splash:

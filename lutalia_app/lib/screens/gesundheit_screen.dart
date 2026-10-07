@@ -4,8 +4,8 @@ import '../screens/food_tracking_screen.dart';
 import '../screens/schritte_screen.dart';
 import 'wasser_screen.dart';
 
-// ⭐ FemBalance importieren
-import '../fembalance/screens/fembalance_home_screen.dart';
+// ⭐ Schlaftracking-Screen importieren (Pfad ggf. anpassen)
+import '../screens/schlaf_tracking_screen.dart';
 
 class GesundheitScreen extends StatelessWidget {
   final VoidCallback onGoHome;
@@ -56,17 +56,17 @@ class GesundheitScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // ⭐ FemBalance anklickbar
+                // ⭐ Neu: Schlaftracking statt FemBalance
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const FemBalanceHomeScreen(),
+                        builder: (_) => const SchlafTrackingScreen(),
                       ),
                     );
                   },
-                  child: _tile("FemBalance"),
+                  child: _tile("Schlaftracking"),
                 ),
                 const SizedBox(height: 12),
 

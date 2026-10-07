@@ -7,6 +7,9 @@ import 'journal_shell.dart';
 import 'moodtracker_screen.dart';
 import 'rituale_screen.dart';
 
+// ⭐ FemBalance importieren
+import '../fembalance/screens/fembalance_home_screen.dart';
+
 class AchtsamkeitScreen extends StatelessWidget {
   final VoidCallback? onGoHome;
 
@@ -43,8 +46,6 @@ class AchtsamkeitScreen extends StatelessWidget {
       return;
     }
 
-    // ⭐ Dankbarkeit wird über JournalShell geöffnet,
-    // damit Repository + Datum korrekt gesetzt werden.
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -61,15 +62,16 @@ class AchtsamkeitScreen extends StatelessWidget {
       onBackPressed: onGoHome,
       child: Column(
         children: [
-          const SizedBox(height: 10),
+          const SizedBox(height: 2),
 
+          // ⭐ Bild in schöner Größe (Höhe 152)
           Image.asset(
             "assets/fee/balance.png",
-            height: 180,
+            height: 152,
             fit: BoxFit.contain,
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
 
           Expanded(
             child: Center(
@@ -77,10 +79,12 @@ class AchtsamkeitScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _item(context, "Tagebuch", () => _openTagebuch(context)),
+                  const SizedBox(height: 10), // ⭐ Etwas mehr Abstand
 
                   _item(context, "Dankbarkeit", () {
                     _openDankbarkeit(context);
                   }),
+                  const SizedBox(height: 10), // ⭐ Etwas mehr Abstand
 
                   _item(context, "Mood Tracker", () {
                     Navigator.push(
@@ -88,11 +92,23 @@ class AchtsamkeitScreen extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => const MoodTrackerScreen()),
                     );
                   }),
+                  const SizedBox(height: 10), // ⭐ Etwas mehr Abstand
 
                   _item(context, "Rituale", () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const RitualeScreen()),
+                    );
+                  }),
+                  const SizedBox(height: 10), // ⭐ Etwas mehr Abstand
+
+                  // ⭐ FemBalance als neuer Punkt
+                  _item(context, "FemBalance", () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FemBalanceHomeScreen(),
+                      ),
                     );
                   }),
                 ],
@@ -106,7 +122,6 @@ class AchtsamkeitScreen extends StatelessWidget {
 
   Widget _item(BuildContext context, String label, VoidCallback onTap) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -127,6 +142,7 @@ class AchtsamkeitScreen extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFB3AA97),
             surfaceTintColor: Colors.transparent,
+            // ⭐ Schöne, große Balken (vertical: 16)
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),

@@ -11,91 +11,90 @@ import 'fembalance_community_screen.dart';
 class FemBalanceHomeScreen extends StatelessWidget {
   const FemBalanceHomeScreen({super.key});
 
-  final Color roseLight = const Color(0xFFF3C9D8);
-  final Color roseMid   = const Color(0xFFE8AFC4);
-  final Color roseDark  = const Color(0xFFD9A2B8);
-  final Color roseDeep  = const Color(0xFFC98FA8);
-  final Color latteBg   = const Color(0xFFF4E6DE);
-  final Color latteText = const Color(0xFFD19884);
+  final Color primaryColor = const Color(0xFFB3AA97);
+  final Color backgroundColor = const Color(0xFFF9F8F6);
+  final Color textColor = const Color(0xFF4A443B);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: latteBg,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: roseLight,
+        backgroundColor: primaryColor,
         elevation: 0,
         title: const Text(
           "FemBalance",
           style: TextStyle(
             fontFamily: "Cinzel",
-            fontSize: 24,
+            fontSize: 22,
             color: Colors.white,
           ),
         ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(18),
+        // ⭐ Großzügiger unterer Abstand (100), damit man garantiert bis ganz nach unten scrollen kann
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           _homeCard(
             context,
             title: "Die 4 Zyklusphasen",
             description: "Verstehe deinen Körper in jeder Phase.",
-            color: roseLight,
+            icon: Icons.track_changes_outlined,
             screen: const CyclePhasesScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "Menstruation Tracking",
             description: "Kalender, Stimmung, Energie & Notizen.",
-            color: roseMid,
+            icon: Icons.calendar_month_outlined,
             screen: const MenstruationTrackingScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "PMS verstehen",
             description: "Selfcare, Ernährung & Wohlbefinden.",
-            color: roseDark,
+            icon: Icons.spa_outlined,
             screen: const PmsScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "Zyklusbasierte Workouts",
             description: "Bewegung im Einklang mit deinem Körper.",
-            color: roseDeep,
+            icon: Icons.fitness_center_outlined,
             screen: const CycleWorkoutsScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "Zyklusbasierte Hautpflege",
             description: "Pflege passend zu deiner Phase.",
-            color: roseLight,
+            icon: Icons.face_outlined,
             screen: const CycleSkincareScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "Zyklusbasierte Emotionen",
             description: "Verstehen, fühlen, annehmen.",
-            color: roseMid,
+            icon: Icons.favorite_border,
             screen: const CycleEmotionsScreen(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           _homeCard(
             context,
             title: "Community",
             description: "Austausch, Fragen & Unterstützung.",
-            color: roseDark,
+            icon: Icons.people_outline,
             screen: const FemBalanceCommunityScreen(),
           ),
         ],
@@ -107,7 +106,7 @@ class FemBalanceHomeScreen extends StatelessWidget {
     BuildContext context, {
     required String title,
     required String description,
-    required Color color,
+    required IconData icon,
     required Widget screen,
   }) {
     return GestureDetector(
@@ -118,62 +117,78 @@ class FemBalanceHomeScreen extends StatelessWidget {
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: primaryColor,
+            width: 1.4,
+          ),
         ),
-        child: Row(
-          children: [
-            // Left color bar
-            Container(
-              width: 10,
-              height: 70,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(8),
-              ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.white,
+              width: 1.4,
             ),
-            const SizedBox(width: 16),
-
-            // Texts
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: "Cinzel",
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: latteText,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontFamily: "NewFirst",
-                      fontSize: 15,
-                      color: Colors.black87,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
-            ),
-
-            const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.black54),
-          ],
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F0EB),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: "Cinzel",
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.black54,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 14,
+                color: primaryColor.withOpacity(0.7),
+              ),
+            ],
+          ),
         ),
       ),
     );

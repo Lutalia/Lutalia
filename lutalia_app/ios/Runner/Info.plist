@@ -87,12 +87,12 @@
         <key>NSBiometricsUsageDescription</key>
         <string>Biometrische Daten werden verwendet, um das Tagebuch sicher zu entsperren.</string>
 
-        <!-- ⭐ HEALTHKIT BERECHTIGUNGEN (NEU) -->
+        <!-- ⭐ HEALTHKIT BERECHTIGUNGEN (SCHLAF & AKTIVITÄT) -->
         <key>NSHealthShareUsageDescription</key>
-        <string>Lutalia liest deine Schritte aus Apple Health, um deine Bewegung anzuzeigen.</string>
+        <string>Lutalia liest deine Schlaf- und Bewegungsdaten aus Apple Health, um deine Regeneration optimal zu analysieren.</string>
 
         <key>NSHealthUpdateUsageDescription</key>
-        <string>Lutalia kann Gesundheitsdaten aktualisieren, um deine Aktivität korrekt zu synchronisieren.</string>
+        <string>Lutalia kann Gesundheitsdaten aktualisieren, um deine Regeneration und Schlafphasen korrekt zu synchronisieren.</string>
 
     </dict>
 </plist>
