@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown by PermissionsRationaleActivity, linked from the Health Connect
+         permission dialog. Keep in sync with the permissions in AndroidManifest.xml. -->
+    <string name="health_rationale_title">Wie Lutalia deine Gesundheitsdaten nutzt</string>
+    <string name="health_rationale_body"><![CDATA[
+<p><b>Was Lutalia liest</b></p>
+<p>Nur die Daten, die du freigibst: deine <b>Schritte</b> und deinen <b>Schlaf</b> (Dauer und Schlafphasen). Andere Gesundheitsdaten werden nicht gelesen.</p>
+<p><b>Was Lutalia niemals tut</b></p>
+<p>Lutalia liest ausschließlich. Es werden keine Gesundheitsdaten geschrieben, verändert oder gelöscht und nicht an Dritte weitergegeben.</p>
+<p><b>Wo deine Daten gespeichert werden</b></p>
+<p>Die Tageswerte werden auf deinem Gerät und in deinem persönlichen Lutalia-Konto gespeichert, damit deine Übersichten aktuell bleiben. Du kannst den Zugriff jederzeit in Health Connect widerrufen.</p>
+<p><b>Kein medizinischer Rat</b></p>
+<p>Lutalia zeigt deine Daten zur Orientierung. Es ersetzt keine ärztliche Diagnose oder Beratung.</p>
+    ]]></string>
+    <string name="health_rationale_close">Schließen</string>
+</resources>
