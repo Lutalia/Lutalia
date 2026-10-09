@@ -59,4 +59,8 @@ dependencies {
 
     // ⭐ WICHTIG: Für flutter_local_notifications (KTS!)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // ⭐ Health Connect: MainActivity registers the permission contract itself.
+    // Keep this on the exact version the `health` plugin resolves (13.3.1).
+    implementation("androidx.health.connect:connect-client:1.2.0-alpha02")
 }

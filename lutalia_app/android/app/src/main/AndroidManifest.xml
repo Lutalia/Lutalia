@@ -40,9 +40,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- ⭐ HEALTH CONNECT SCHLAF BERECHTIGUNGEN (NEU) -->
+    <!-- ⭐ HEALTH CONNECT (nur Lesen). Must match HealthPermissionBridge.permissions;
+         Google Play rejects declared health permissions the app never uses. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
-    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
 
     <application
         android:label="@string/app_name"
@@ -50,6 +51,32 @@
         android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="true">
+
+        <!-- ⭐ Health Connect privacy rationale. Without a handler for these
+             intents the permission grant does not complete and Health Connect
+             returns an empty set, which looks exactly like a refusal.
+             Android 13 and lower: ACTION_SHOW_PERMISSIONS_RATIONALE.
+             Android 14+: VIEW_PERMISSION_USAGE alias. -->
+        <activity
+            android:name=".PermissionsRationaleActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.Light.Dialog">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".MainActivity"
@@ -111,6 +138,12 @@
 
         <intent>
             <action android:name="androidx.health.ACTION_REQUEST_PERMISSIONS" />
+        </intent>
+
+        <!-- Play Store, to offer installing Health Connect when it is missing. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
         </intent>
 
     </queries>

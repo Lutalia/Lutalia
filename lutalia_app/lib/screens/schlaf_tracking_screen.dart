@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/health_day_summary.dart';
+import '../services/health/health_sync_service.dart';
+import '../services/health/health_texts.dart';
+
 class SchlafTrackingScreen extends StatefulWidget {
   const SchlafTrackingScreen({super.key});
 
@@ -26,8 +30,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
 
   final TextEditingController _customInfluenceController =
       TextEditingController();
-  final ValueNotifier<String> _customInfluenceNotifier =
-      ValueNotifier<String>('');
+  final ValueNotifier<String> _customInfluenceNotifier = ValueNotifier<String>(
+    '',
+  );
 
   late final PageController _tipsController;
   int _currentTipPage = 0;
@@ -119,9 +124,14 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  // Apple Health / Health Connect
+  bool _isSyncing = false;
+  HealthDaySummary? _healthDay;
+
   @override
   void initState() {
     super.initState();
+    _loadHealthOnOpen();
     _tipsController = PageController();
     _pulseController = AnimationController(
       vsync: this,
@@ -144,6 +154,84 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     _customInfluenceController.dispose();
     _customInfluenceNotifier.dispose();
     super.dispose();
+  }
+
+  /// Cached values first (instant, offline), then a silent platform refresh
+  /// for users who already connected. Never shows a permission prompt.
+  Future<void> _loadHealthOnOpen() async {
+    final HealthDaySummary? cached = await HealthSyncService.cachedDay(
+      DateTime.now(),
+    );
+    if (!mounted) return;
+    _applyHealthDay(cached);
+    final HealthDaySummary? fresh = await HealthSyncService.refreshToday();
+    if (!mounted) return;
+    _applyHealthDay(fresh);
+  }
+
+  Future<void> _syncHealth() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+    final HealthSyncResult result = await HealthSyncService.connect();
+    if (!mounted) return;
+    setState(() => _isSyncing = false);
+    _applyHealthDay(result.today);
+    _showHealthMessage(result.outcome);
+  }
+
+  /// Real values replace the manual defaults only when a night was recorded.
+  /// Missing stages become 0 (shown with a hint) rather than invented numbers.
+  void _applyHealthDay(HealthDaySummary? day) {
+    if (day == null) return;
+    setState(() {
+      _healthDay = day;
+      final SleepSummary? sleep = day.sleep;
+      if (sleep == null) return;
+      sleepHours = double.parse(sleep.asleepHours.toStringAsFixed(1));
+      deepSleepMinutes = sleep.deepMinutes ?? 0;
+      remSleepMinutes = sleep.remMinutes ?? 0;
+      awakeMinutes = sleep.awakeMinutes ?? 0;
+    });
+  }
+
+  void _showHealthMessage(HealthSyncOutcome outcome) {
+    final String? actionLabel = HealthTexts.actionLabel(outcome);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(HealthTexts.message(outcome)),
+          backgroundColor: const Color(0xFF4A3B32),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: actionLabel == null ? 3 : 6),
+          action: actionLabel == null
+              ? null
+              : SnackBarAction(
+                  label: actionLabel,
+                  textColor: const Color(0xFFC89B7B),
+                  onPressed: () => _resolveHealthOutcome(outcome),
+                ),
+        ),
+      );
+  }
+
+  void _resolveHealthOutcome(HealthSyncOutcome outcome) {
+    if (outcome == HealthSyncOutcome.notInstalled ||
+        outcome == HealthSyncOutcome.needsUpdate) {
+      HealthSyncService.installHealthConnect();
+    } else {
+      HealthSyncService.openPermissionSettings();
+    }
+  }
+
+  String _bedtimeText(String fallback) {
+    final DateTime? at = _healthDay?.sleep?.bedtime;
+    return at == null ? fallback : HealthTexts.clock(at);
+  }
+
+  String _wakeTimeText(String fallback) {
+    final DateTime? at = _healthDay?.sleep?.wakeTime;
+    return at == null ? fallback : HealthTexts.clock(at);
   }
 
   double _calculatePerfectSleepScore(
@@ -235,8 +323,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
             backgroundColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios,
-                  color: Color(0xFF4A3B32), size: 22),
+              icon: const Icon(
+                Icons.arrow_back_ios,
+                color: Color(0xFF4A3B32),
+                size: 22,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
             title: Row(
@@ -257,15 +348,20 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
             centerTitle: true,
             actions: [
               IconButton(
-                icon: const Icon(Icons.person_outline,
-                    color: Color(0xFF4A3B32), size: 26),
+                icon: const Icon(
+                  Icons.person_outline,
+                  color: Color(0xFF4A3B32),
+                  size: 26,
+                ),
                 onPressed: () {},
               ),
             ],
           ),
           body: SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -289,8 +385,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                 const SizedBox(height: 28),
                 Center(
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEAE3DD),
                       borderRadius: BorderRadius.circular(30),
@@ -321,7 +419,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                   decoration: BoxDecoration(
                     color: const Color(0xFFEAE3DD),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFD6CBC1), width: 1),
+                    border: Border.all(
+                      color: const Color(0xFFD6CBC1),
+                      width: 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
@@ -335,8 +436,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     children: [
                       Row(
                         children: const [
-                          Icon(Icons.analytics_outlined,
-                              color: Color(0xFFC89B7B), size: 22),
+                          Icon(
+                            Icons.analytics_outlined,
+                            color: Color(0xFFC89B7B),
+                            size: 22,
+                          ),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -353,37 +457,8 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                         ],
                       ),
                       const SizedBox(height: 18),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F0EB),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFD6CBC1)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.sync,
-                                color: Color(0xFF4A3B32), size: 18),
-                            SizedBox(width: 10),
-                            Flexible(
-                              child: Text(
-                                'APPLE HEALTH / HEALTH CONNECT SYNCHRONISIEREN',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Color(0xFF4A3B32),
-                                  fontSize: 11,
-                                  fontFamily: 'Cinzel',
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.6,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildHealthSyncButton(),
+                      _buildHealthSyncStatus(),
                       const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -411,7 +486,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                         ],
                       ),
                       Slider(
-                        value: sleepHours,
+                        // Synced nights can fall outside the manual range;
+                        // the label and score keep the real value.
+                        value: sleepHours.clamp(3.0, 12.0),
                         min: 3.0,
                         max: 12.0,
                         divisions: 18,
@@ -472,7 +549,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       Center(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 8),
+                            horizontal: 18,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF4A3B32),
                             borderRadius: BorderRadius.circular(20),
@@ -480,8 +559,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.check_circle_outline,
-                                  color: Colors.white, size: 16),
+                              const Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
@@ -532,8 +614,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     children: [
                       Row(
                         children: const [
-                          Icon(Icons.bedtime_outlined,
-                              color: Color(0xFFC89B7B), size: 22),
+                          Icon(
+                            Icons.bedtime_outlined,
+                            color: Color(0xFFC89B7B),
+                            size: 22,
+                          ),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -553,68 +638,83 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       const Text(
                         'Wähle alle zutreffenden Faktoren aus:',
                         style: TextStyle(
-                            color: Color(0xFF6B5B52),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500),
+                          color: Color(0xFF6B5B52),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       _buildCheckboxTile(
-                          'Späte Bildschirmzeit (Handy / TV)',
-                          lateScreenTime,
-                          (val) => setState(
-                              () => lateScreenTime = val ?? false)),
+                        'Späte Bildschirmzeit (Handy / TV)',
+                        lateScreenTime,
+                        (val) => setState(() => lateScreenTime = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Schweres Essen kurz vor dem Schlafen',
-                          heavyMeal,
-                          (val) => setState(() => heavyMeal = val ?? false)),
+                        'Schweres Essen kurz vor dem Schlafen',
+                        heavyMeal,
+                        (val) => setState(() => heavyMeal = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Koffein am späten Nachmittag / Abend',
-                          lateCaffeine,
-                          (val) => setState(
-                              () => lateCaffeine = val ?? false)),
+                        'Koffein am späten Nachmittag / Abend',
+                        lateCaffeine,
+                        (val) => setState(() => lateCaffeine = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Spätes Workout / körperliche Aktivität',
-                          lateWorkout,
-                          (val) => setState(() => lateWorkout = val ?? false)),
+                        'Spätes Workout / körperliche Aktivität',
+                        lateWorkout,
+                        (val) => setState(() => lateWorkout = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Alkoholgenuss am Abend',
-                          alcohol,
-                          (val) => setState(() => alcohol = val ?? false)),
+                        'Alkoholgenuss am Abend',
+                        alcohol,
+                        (val) => setState(() => alcohol = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Hohes Stresslevel / Termindruck',
-                          highStress,
-                          (val) => setState(() => highStress = val ?? false)),
+                        'Hohes Stresslevel / Termindruck',
+                        highStress,
+                        (val) => setState(() => highStress = val ?? false),
+                      ),
                       _buildCheckboxTile(
-                          'Gedankenkreisen / Innere Unruhe',
-                          racingThoughts,
-                          (val) => setState(
-                              () => racingThoughts = val ?? false)),
+                        'Gedankenkreisen / Innere Unruhe',
+                        racingThoughts,
+                        (val) => setState(() => racingThoughts = val ?? false),
+                      ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _customInfluenceController,
                         style: const TextStyle(
-                            color: Color(0xFF4A3B32), fontSize: 14),
+                          color: Color(0xFF4A3B32),
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
-                          labelText: 'Sonstiges (z. B. spätes Meeting, Lärm)...',
+                          labelText:
+                              'Sonstiges (z. B. spätes Meeting, Lärm)...',
                           labelStyle: const TextStyle(
-                              color: Color(0xFF8C7A70),
-                              fontSize: 12,
-                              fontFamily: 'Cinzel'),
+                            color: Color(0xFF8C7A70),
+                            fontSize: 12,
+                            fontFamily: 'Cinzel',
+                          ),
                           filled: true,
                           fillColor: const Color(0xFFF5F0EB),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFD6CBC1)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD6CBC1),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                                color: Color(0xFFC89B7B), width: 1.5),
+                              color: Color(0xFFC89B7B),
+                              width: 1.5,
+                            ),
                           ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear,
-                                color: Color(0xFF8C7A70), size: 18),
+                            icon: const Icon(
+                              Icons.clear,
+                              color: Color(0xFF8C7A70),
+                              size: 18,
+                            ),
                             onPressed: () {
                               _customInfluenceController.clear();
                               setState(() {});
@@ -638,8 +738,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     children: [
                       Row(
                         children: const [
-                          Icon(Icons.timeline,
-                              color: Color(0xFFC89B7B), size: 22),
+                          Icon(
+                            Icons.timeline,
+                            color: Color(0xFFC89B7B),
+                            size: 22,
+                          ),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -659,7 +762,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       const Text(
                         'Grafischer Verlauf der Nachtphasen (23:15 – 06:45 Uhr)',
                         style: TextStyle(
-                            color: Color(0xFF6B5B52), fontSize: 13),
+                          color: Color(0xFF6B5B52),
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 18),
                       Container(
@@ -672,66 +777,95 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                         child: Row(
                           children: [
                             Expanded(
-                                flex: 2,
-                                child: Container(
-                                    decoration: const BoxDecoration(
-                                        color: Color(0xFFD4A373),
-                                        borderRadius: BorderRadius.horizontal(
-                                            left: Radius.circular(11))),
-                                    child: const Center(
-                                        child: Text('Wach',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight.bold))))),
+                              flex: 2,
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFD4A373),
+                                  borderRadius: BorderRadius.horizontal(
+                                    left: Radius.circular(11),
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Wach',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             Expanded(
-                                flex: 4,
-                                child: Container(
-                                    color: const Color(0xFF8C7A70),
-                                    child: const Center(
-                                        child: Text('REM',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight.bold))))),
+                              flex: 4,
+                              child: Container(
+                                color: const Color(0xFF8C7A70),
+                                child: const Center(
+                                  child: Text(
+                                    'REM',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             Expanded(
-                                flex: 8,
-                                child: Container(
-                                    color: const Color(0xFF4A3B32),
-                                    child: const Center(
-                                        child: Text('Tiefschlaf',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight.bold))))),
+                              flex: 8,
+                              child: Container(
+                                color: const Color(0xFF4A3B32),
+                                child: const Center(
+                                  child: Text(
+                                    'Tiefschlaf',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             Expanded(
-                                flex: 5,
-                                child: Container(
-                                    color: const Color(0xFF8C7A70),
-                                    child: const Center(
-                                        child: Text('REM',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight.bold))))),
+                              flex: 5,
+                              child: Container(
+                                color: const Color(0xFF8C7A70),
+                                child: const Center(
+                                  child: Text(
+                                    'REM',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             Expanded(
-                                flex: 2,
-                                child: Container(
-                                    decoration: const BoxDecoration(
-                                        color: Color(0xFFD4A373),
-                                        borderRadius: BorderRadius.horizontal(
-                                            right: Radius.circular(11))),
-                                    child: const Center(
-                                        child: Text('Wach',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight.bold))))),
+                              flex: 2,
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFD4A373),
+                                  borderRadius: BorderRadius.horizontal(
+                                    right: Radius.circular(11),
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Wach',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -739,26 +873,38 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: const [
-                          Text('23:15',
-                              style: TextStyle(
-                                  color: Color(0xFF8C7A70),
-                                  fontSize: 11,
-                                  fontFamily: 'Cinzel')),
-                          Text('02:00',
-                              style: TextStyle(
-                                  color: Color(0xFF8C7A70),
-                                  fontSize: 11,
-                                  fontFamily: 'Cinzel')),
-                          Text('04:30',
-                              style: TextStyle(
-                                  color: Color(0xFF8C7A70),
-                                  fontSize: 11,
-                                  fontFamily: 'Cinzel')),
-                          Text('06:45',
-                              style: TextStyle(
-                                  color: Color(0xFF8C7A70),
-                                  fontSize: 11,
-                                  fontFamily: 'Cinzel')),
+                          Text(
+                            '23:15',
+                            style: TextStyle(
+                              color: Color(0xFF8C7A70),
+                              fontSize: 11,
+                              fontFamily: 'Cinzel',
+                            ),
+                          ),
+                          Text(
+                            '02:00',
+                            style: TextStyle(
+                              color: Color(0xFF8C7A70),
+                              fontSize: 11,
+                              fontFamily: 'Cinzel',
+                            ),
+                          ),
+                          Text(
+                            '04:30',
+                            style: TextStyle(
+                              color: Color(0xFF8C7A70),
+                              fontSize: 11,
+                              fontFamily: 'Cinzel',
+                            ),
+                          ),
+                          Text(
+                            '06:45',
+                            style: TextStyle(
+                              color: Color(0xFF8C7A70),
+                              fontSize: 11,
+                              fontFamily: 'Cinzel',
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 18),
@@ -773,8 +919,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                             ),
                             elevation: 0,
                           ),
-                          onPressed: () =>
-                              _showDetailedSleepModal(context),
+                          onPressed: () => _showDetailedSleepModal(context),
                           child: const Text(
                             'UHR-DETAILANSICHT ÖFFNEN',
                             style: TextStyle(
@@ -806,8 +951,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.insights,
-                                  color: Color(0xFFC89B7B), size: 22),
+                              Icon(
+                                Icons.insights,
+                                color: Color(0xFFC89B7B),
+                                size: 22,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'SCORE-ZEITSTRAHL',
@@ -824,10 +972,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                           const Text(
                             'Tippe auf Tag',
                             style: TextStyle(
-                                color: Color(0xFF8C7A70),
-                                fontSize: 11,
-                                fontFamily: 'Cinzel',
-                                fontWeight: FontWeight.w600),
+                              color: Color(0xFF8C7A70),
+                              fontSize: 11,
+                              fontFamily: 'Cinzel',
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -835,7 +984,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       const Text(
                         'Verlauf & Prognose auf der durchgehenden Zeitachse',
                         style: TextStyle(
-                            color: Color(0xFF6B5B52), fontSize: 13),
+                          color: Color(0xFF6B5B52),
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       SingleChildScrollView(
@@ -855,14 +1006,13 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                               },
                               child: Container(
                                 width: 52,
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 4),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 child: Column(
                                   children: [
                                     Text(
-                                      sval > 0
-                                          ? sval.toStringAsFixed(0)
-                                          : '0',
+                                      sval > 0 ? sval.toStringAsFixed(0) : '0',
                                       style: TextStyle(
                                         color: isSelected
                                             ? const Color(0xFF4A3B32)
@@ -880,8 +1030,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                                           Container(
                                             width: 5,
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFFD6CBC1)
-                                                  .withValues(alpha: 0.4),
+                                              color: const Color(
+                                                0xFFD6CBC1,
+                                              ).withValues(alpha: 0.4),
                                               borderRadius:
                                                   BorderRadius.circular(2.5),
                                             ),
@@ -915,13 +1066,16 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                                         ),
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 4),
+                                            horizontal: 6,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: isSelected
                                                 ? const Color(0xFF4A3B32)
                                                 : const Color(0xFFF5F0EB),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                             border: Border.all(
                                               color: isSelected
                                                   ? const Color(0xFF4A3B32)
@@ -937,8 +1091,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                                                 style: TextStyle(
                                                   color: isSelected
                                                       ? Colors.white
-                                                      : const Color(
-                                                          0xFF4A3B32),
+                                                      : const Color(0xFF4A3B32),
                                                   fontSize: 10,
                                                   fontFamily: 'Cinzel',
                                                   fontWeight: FontWeight.bold,
@@ -949,8 +1102,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                                                 style: TextStyle(
                                                   color: isSelected
                                                       ? Colors.white70
-                                                      : const Color(
-                                                          0xFF6B5B52),
+                                                      : const Color(0xFF6B5B52),
                                                   fontSize: 8,
                                                 ),
                                               ),
@@ -1033,6 +1185,86 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     );
   }
 
+  Widget _buildHealthSyncButton() {
+    return Material(
+      color: const Color(0xFFF5F0EB),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _isSyncing ? null : _syncHealth,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFD6CBC1)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _isSyncing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF4A3B32),
+                      ),
+                    )
+                  : const Icon(Icons.sync, color: Color(0xFF4A3B32), size: 18),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  _isSyncing ? HealthTexts.syncing : HealthTexts.syncButton,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF4A3B32),
+                    fontSize: 11,
+                    fontFamily: 'Cinzel',
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthSyncStatus() {
+    final HealthDaySummary? day = _healthDay;
+    if (day == null) return const SizedBox.shrink();
+    final SleepSummary? sleep = day.sleep;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            HealthTexts.lastSynced(day.syncedAt),
+            style: const TextStyle(color: Color(0xFF8C7A70), fontSize: 11),
+          ),
+          if (sleep == null) ...[
+            const SizedBox(height: 4),
+            Text(
+              HealthTexts.noSleepLastNight,
+              style: const TextStyle(color: Color(0xFF8C7A70), fontSize: 11),
+            ),
+          ],
+          if (sleep != null && !sleep.hasStages) ...[
+            const SizedBox(height: 4),
+            const Text(
+              HealthTexts.noStages,
+              style: TextStyle(color: Color(0xFF8C7A70), fontSize: 11),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildPhaseDetailRow(String title, String value, Color color) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1070,24 +1302,32 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
   }
 
   Widget _buildCheckboxTile(
-      String title, bool value, ValueChanged<bool?> onChanged) {
-    return CheckboxListTile(
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: Color(0xFF4A3B32),
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
+    String title,
+    bool value,
+    ValueChanged<bool?> onChanged,
+  ) {
+    // Own transparent Material: the card's coloured Container would otherwise
+    // hide the tile's ink and trigger a ListTile assertion.
+    return Material(
+      type: MaterialType.transparency,
+      child: CheckboxListTile(
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF4A3B32),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
         ),
+        value: value,
+        onChanged: onChanged,
+        activeColor: const Color(0xFFC89B7B),
+        checkColor: Colors.white,
+        contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        dense: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      value: value,
-      onChanged: onChanged,
-      activeColor: const Color(0xFFC89B7B),
-      checkColor: Colors.white,
-      contentPadding: EdgeInsets.zero,
-      controlAffinity: ListTileControlAffinity.leading,
-      dense: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
   }
 
@@ -1129,7 +1369,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
           Text(
             description,
             style: const TextStyle(
-                color: Color(0xFF6B5B52), fontSize: 12, height: 1.3),
+              color: Color(0xFF6B5B52),
+              fontSize: 12,
+              height: 1.3,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1138,12 +1381,14 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     );
   }
 
-  void _showDayDetailModal(
-      BuildContext context, Map<String, dynamic> dayData) {
+  void _showDayDetailModal(BuildContext context, Map<String, dynamic> dayData) {
     List<dynamic> infs = dayData['influences'] ?? [];
     double score = dayData['score'];
     String quality = dayData['quality'];
     bool hasData = score > 0;
+    final bool isToday = identical(dayData, _weeklyData[4]);
+    final String bedtime = isToday ? _bedtimeText('23:15 Uhr') : '23:15 Uhr';
+    final String wakeTime = isToday ? _wakeTimeText('06:45 Uhr') : '06:45 Uhr';
 
     showModalBottomSheet(
       context: context,
@@ -1188,8 +1433,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     ],
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFC89B7B),
                       borderRadius: BorderRadius.circular(12),
@@ -1197,10 +1444,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     child: Text(
                       'Score: ${hasData ? score.toStringAsFixed(0) : '0'}',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Cinzel',
-                          fontSize: 12),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Cinzel',
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -1209,9 +1457,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
               const Text(
                 'Vollständige Aufzeichnung und Einflussfaktoren',
                 style: TextStyle(
-                    color: Color(0xFF6B5B52),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500),
+                  color: Color(0xFF6B5B52),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const SizedBox(height: 18),
               Expanded(
@@ -1226,27 +1475,34 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.star_outline,
-                              color: Color(0xFFC89B7B), size: 24),
+                          const Icon(
+                            Icons.star_outline,
+                            color: Color(0xFFC89B7B),
+                            size: 24,
+                          ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Einschätzung',
-                                    style: TextStyle(
-                                        color: Color(0xFF8C7A70),
-                                        fontSize: 11,
-                                        fontFamily: 'Cinzel',
-                                        fontWeight: FontWeight.bold)),
+                                const Text(
+                                  'Einschätzung',
+                                  style: TextStyle(
+                                    color: Color(0xFF8C7A70),
+                                    fontSize: 11,
+                                    fontFamily: 'Cinzel',
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   quality,
                                   style: const TextStyle(
-                                      color: Color(0xFF4A3B32),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'Cinzel'),
+                                    color: Color(0xFF4A3B32),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Cinzel',
+                                  ),
                                 ),
                               ],
                             ),
@@ -1256,42 +1512,49 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                     ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.bedtime_outlined,
-                        'Einschlafzeit',
-                        hasData ? '23:15 Uhr' : 'Keine Daten'),
+                      Icons.bedtime_outlined,
+                      'Einschlafzeit',
+                      hasData ? bedtime : HealthTexts.noData,
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.wb_sunny_outlined,
-                        'Aufwachzeit',
-                        hasData ? '06:45 Uhr' : 'Keine Daten'),
+                      Icons.wb_sunny_outlined,
+                      'Aufwachzeit',
+                      hasData ? wakeTime : HealthTexts.noData,
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.hourglass_bottom,
-                        'Schlafdauer Gesamt',
-                        hasData ? '${dayData['hours']} Stunden' : '0 Stunden'),
+                      Icons.hourglass_bottom,
+                      'Schlafdauer Gesamt',
+                      hasData ? '${dayData['hours']} Stunden' : '0 Stunden',
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.nightlight,
-                        'Tiefschlaf',
-                        hasData ? '${dayData['deep']} Minuten' : '0 Minuten'),
+                      Icons.nightlight,
+                      'Tiefschlaf',
+                      hasData ? '${dayData['deep']} Minuten' : '0 Minuten',
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.waves,
-                        'REM-Schlaf',
-                        hasData ? '${dayData['rem']} Minuten' : '0 Minuten'),
+                      Icons.waves,
+                      'REM-Schlaf',
+                      hasData ? '${dayData['rem']} Minuten' : '0 Minuten',
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.remove_red_eye_outlined,
-                        'Wachphase',
-                        hasData ? '${dayData['awake']} Minuten' : '0 Minuten'),
+                      Icons.remove_red_eye_outlined,
+                      'Wachphase',
+                      hasData ? '${dayData['awake']} Minuten' : '0 Minuten',
+                    ),
                     const SizedBox(height: 12),
                     ScaleTransition(
                       scale: _pulseAnimation,
                       child: _buildModalDetailTile(
-                          Icons.favorite,
-                          'Herzfrequenz im Schlaf',
-                          hasData ? 'Ø58 bpm (Stabil & Optimal)' : '0 bpm',
-                          iconColor: Colors.redAccent),
+                        Icons.favorite,
+                        'Herzfrequenz im Schlaf',
+                        hasData ? 'Ø58 bpm (Stabil & Optimal)' : '0 bpm',
+                        iconColor: Colors.redAccent,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Container(
@@ -1306,8 +1569,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                         children: [
                           Row(
                             children: const [
-                              Icon(Icons.warning_amber_rounded,
-                                  color: Color(0xFFC89B7B), size: 18),
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Color(0xFFC89B7B),
+                                size: 18,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'Faktoren vor der Nachtruhe:',
@@ -1325,39 +1591,47 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                               ? const Text(
                                   'An diesem Tag wurden keine Daten oder Einflüsse erfasst.',
                                   style: TextStyle(
-                                      color: Color(0xFF6B5B52), fontSize: 13),
+                                    color: Color(0xFF6B5B52),
+                                    fontSize: 13,
+                                  ),
                                 )
                               : infs.isEmpty
-                                  ? const Text(
-                                      'Keine negativen Einflüsse dokumentiert. Hervorragende Voraussetzungen!',
-                                      style: TextStyle(
-                                          color: Color(0xFF6B5B52),
-                                          fontSize: 13),
-                                    )
-                                  : Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: infs
-                                          .map((inf) => Chip(
-                                                label: Text(inf,
-                                                    style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color:
-                                                            Color(0xFF4A3B32),
-                                                        fontWeight:
-                                                            FontWeight.w500)),
-                                                backgroundColor:
-                                                    const Color(0xFFF5F0EB),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          12),
-                                                  side: const BorderSide(
-                                                      color: Color(0xFFD6CBC1)),
-                                                ),
-                                              ))
-                                          .toList(),
-                                    ),
+                              ? const Text(
+                                  'Keine negativen Einflüsse dokumentiert. Hervorragende Voraussetzungen!',
+                                  style: TextStyle(
+                                    color: Color(0xFF6B5B52),
+                                    fontSize: 13,
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: infs
+                                      .map(
+                                        (inf) => Chip(
+                                          label: Text(
+                                            inf,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF4A3B32),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFFF5F0EB,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFFD6CBC1),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
                         ],
                       ),
                     ),
@@ -1397,7 +1671,8 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
   }
 
   void _showDetailedSleepModal(BuildContext context) {
-    bool hasNegativeInfluences = heavyMeal ||
+    bool hasNegativeInfluences =
+        heavyMeal ||
         alcohol ||
         lateCaffeine ||
         highStress ||
@@ -1454,27 +1729,35 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
               const Text(
                 'Präzise Aufzeichnung deiner Smartwatch / Fitness-App',
                 style: TextStyle(
-                    color: Color(0xFF6B5B52),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500),
+                  color: Color(0xFF6B5B52),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const SizedBox(height: 20),
               Expanded(
                 child: ListView(
                   children: [
-                    _buildModalDetailTile(Icons.bedtime_outlined,
-                        'Einschlafzeit', '23:15 Uhr'),
+                    _buildModalDetailTile(
+                      Icons.bedtime_outlined,
+                      'Einschlafzeit',
+                      _bedtimeText('23:15 Uhr'),
+                    ),
                     const SizedBox(height: 12),
                     _buildModalDetailTile(
-                        Icons.wb_sunny_outlined, 'Aufwachzeit', '06:45 Uhr'),
+                      Icons.wb_sunny_outlined,
+                      'Aufwachzeit',
+                      _wakeTimeText('06:45 Uhr'),
+                    ),
                     const SizedBox(height: 12),
                     ScaleTransition(
                       scale: _pulseAnimation,
                       child: _buildModalDetailTile(
-                          Icons.favorite,
-                          'Herzfrequenz im Schlaf',
-                          hrStatusText,
-                          iconColor: Colors.redAccent),
+                        Icons.favorite,
+                        'Herzfrequenz im Schlaf',
+                        hrStatusText,
+                        iconColor: Colors.redAccent,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Container(
@@ -1500,9 +1783,10 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                           Text(
                             hrExplanation,
                             style: const TextStyle(
-                                color: Color(0xFF6B5B52),
-                                fontSize: 13,
-                                height: 1.4),
+                              color: Color(0xFF6B5B52),
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
                           ),
                         ],
                       ),
@@ -1542,8 +1826,12 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     );
   }
 
-  Widget _buildModalDetailTile(IconData icon, String label, String value,
-      {Color iconColor = const Color(0xFFC89B7B)}) {
+  Widget _buildModalDetailTile(
+    IconData icon,
+    String label,
+    String value, {
+    Color iconColor = const Color(0xFFC89B7B),
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1562,10 +1850,11 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                 Text(
                   label,
                   style: const TextStyle(
-                      color: Color(0xFF8C7A70),
-                      fontSize: 11,
-                      fontFamily: 'Cinzel',
-                      fontWeight: FontWeight.bold),
+                    color: Color(0xFF8C7A70),
+                    fontSize: 11,
+                    fontFamily: 'Cinzel',
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
