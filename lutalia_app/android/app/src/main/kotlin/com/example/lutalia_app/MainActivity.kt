@@ -9,9 +9,18 @@ import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.aggregate.AggregationResultGroupedByPeriod
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.Period
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,8 +38,8 @@ import kotlinx.coroutines.withContext
  * registered here in onCreate — registerForActivityResult is only legal before
  * the activity is STARTED.
  *
- * Reading records still goes through the plugin; this class only owns the
- * permission request, grant lookup, availability and settings routes.
+ * Sleep is still read through the plugin. Steps are aggregated here because
+ * the plugin cannot filter by source app (see [readDailySteps]).
  */
 class MainActivity : FlutterFragmentActivity() {
 
@@ -73,6 +82,18 @@ class MainActivity : FlutterFragmentActivity() {
 
                 "getGrantedPermissions" -> scope.launch {
                     result.success(readGrantedPermissions())
+                }
+
+                "readDailySteps" -> {
+                    val start = call.argument<Number>("start")?.toLong()
+                    val end = call.argument<Number>("end")?.toLong()
+                    val preferred =
+                        call.argument<List<String>>("preferredSources") ?: emptyList()
+                    if (start == null || end == null || end <= start) {
+                        result.error("BAD_ARGS", "start/end missing or empty range", null)
+                    } else {
+                        scope.launch { result.success(readDailySteps(start, end, preferred)) }
+                    }
                 }
 
                 "getAvailability" -> result.success(readAvailability())
@@ -127,6 +148,70 @@ class MainActivity : FlutterFragmentActivity() {
             "error" to (e.message ?: e.javaClass.name),
             "type" to e.javaClass.name
         )
+    }
+
+    /**
+     * Steps per local calendar day in [startMs, endMs).
+     *
+     * Health Connect only de-duplicates records that overlap in time, so a
+     * phone and a watch (or Google Fit next to Samsung Health) logging the same
+     * walk in differently sliced records are added together. For every
+     * [preferred] app that contributed, its own per-day total is returned too,
+     * so Dart can use the number the user actually sees in that app.
+     */
+    private suspend fun readDailySteps(
+        startMs: Long,
+        endMs: Long,
+        preferred: List<String>
+    ): Map<String, Any> = try {
+        withContext(Dispatchers.IO) {
+            val client = HealthConnectClient.getOrCreate(applicationContext)
+            val zone = ZoneId.systemDefault()
+            val range = TimeRangeFilter.between(
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(startMs), zone),
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(endMs), zone)
+            )
+
+            suspend fun perDay(origins: Set<DataOrigin>): List<AggregationResultGroupedByPeriod> =
+                client.aggregateGroupByPeriod(
+                    AggregateGroupByPeriodRequest(
+                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        timeRangeFilter = range,
+                        timeRangeSlicer = Period.ofDays(1),
+                        dataOriginFilter = origins
+                    )
+                )
+
+            fun dayKey(group: AggregationResultGroupedByPeriod) =
+                group.startTime.toLocalDate().toString()
+
+            val all = perDay(emptySet())
+            val contributing = all
+                .flatMap { group -> group.result.dataOrigins.map { it.packageName } }
+                .toSet()
+
+            val bySourcePerDay = mutableMapOf<String, MutableMap<String, Long>>()
+            for (pkg in preferred) {
+                if (pkg !in contributing) continue
+                for (group in perDay(setOf(DataOrigin(pkg)))) {
+                    bySourcePerDay.getOrPut(dayKey(group)) { mutableMapOf() }[pkg] =
+                        group.result[StepsRecord.COUNT_TOTAL] ?: 0L
+                }
+            }
+
+            val days = all.map { group ->
+                mapOf(
+                    "date" to dayKey(group),
+                    "total" to (group.result[StepsRecord.COUNT_TOTAL] ?: 0L),
+                    "sources" to group.result.dataOrigins.map { it.packageName },
+                    "bySource" to (bySourcePerDay[dayKey(group)] ?: emptyMap<String, Long>())
+                )
+            }
+            mapOf("ok" to true, "days" to days)
+        }
+    } catch (e: Exception) {
+        Log.e(HEALTH_LOG_TAG, "readDailySteps failed", e)
+        mapOf("ok" to false, "error" to (e.message ?: e.javaClass.name))
     }
 
     /**

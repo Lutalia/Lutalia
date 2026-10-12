@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
@@ -14,22 +16,47 @@ class SchritteScreen extends StatefulWidget {
   State<SchritteScreen> createState() => _SchritteScreenState();
 }
 
-class _SchritteScreenState extends State<SchritteScreen> {
+class _SchritteScreenState extends State<SchritteScreen>
+    with WidgetsBindingObserver {
   late VideoPlayerController _videoController;
 
   static const int _historyDays = 30;
+  static const Duration _autoRefreshInterval = Duration(minutes: 1);
   static final NumberFormat _stepsFormat = NumberFormat.decimalPattern('de_DE');
 
   int todaySteps = 0;
   List<({DateTime day, int? steps})> _days = const [];
   HealthSyncOutcome? _problem;
   bool _isLoading = false;
+  Timer? _autoRefresh;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initVideo();
     _loadSteps();
+    _startAutoRefresh();
+  }
+
+  // Samsung Health hands new steps to Health Connect on its own schedule, so
+  // re-read while the screen is visible instead of only on open.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadSteps(silent: true);
+      _startAutoRefresh();
+    } else if (state == AppLifecycleState.paused) {
+      _autoRefresh?.cancel();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefresh?.cancel();
+    _autoRefresh = Timer.periodic(
+      _autoRefreshInterval,
+      (_) => _loadSteps(silent: true),
+    );
   }
 
   // ⭐ VIDEO INITIALISIEREN
@@ -48,7 +75,8 @@ class _SchritteScreenState extends State<SchritteScreen> {
   // ⭐ ECHTES SCHRITT-TRACKING (Apple Health / Health Connect)
   // First visit asks for permission (as before); afterwards it refreshes
   // silently. Stored values show instantly and cover offline use.
-  Future<void> _loadSteps() async {
+  // [silent] refreshes (resume, timer) never show the permission sheet.
+  Future<void> _loadSteps({bool silent = false}) async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
 
@@ -57,8 +85,8 @@ class _SchritteScreenState extends State<SchritteScreen> {
       setState(() => todaySteps = cached!.steps!);
     }
 
-    HealthSyncOutcome? problem;
-    if (!await HealthSyncService.isConnected()) {
+    HealthSyncOutcome? problem = silent ? _problem : null;
+    if (!silent && !await HealthSyncService.isConnected()) {
       final HealthSyncResult result = await HealthSyncService.connect();
       if (!result.isSuccess) problem = result.outcome;
     }
@@ -97,6 +125,8 @@ class _SchritteScreenState extends State<SchritteScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoRefresh?.cancel();
     _videoController.dispose();
     super.dispose();
   }
