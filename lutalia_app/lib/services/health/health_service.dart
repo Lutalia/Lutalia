@@ -50,6 +50,14 @@ class HealthService {
 
   static const Duration _sleepLookBack = Duration(hours: 12);
 
+  /// Apps whose own step count wins over Health Connect's merged sum, in
+  /// order. Samsung Health is what users compare Lutalia against; the merged
+  /// sum can be thousands higher when a watch, the phone or Google Fit write
+  /// the same walk as separate records.
+  static const List<String> _preferredStepSources = <String>[
+    HealthPermissionBridge.samsungHealthPackage,
+  ];
+
   HealthDataSource get source =>
       _isIOS ? HealthDataSource.appleHealth : HealthDataSource.healthConnect;
 
@@ -209,11 +217,15 @@ class HealthService {
     }
   }
 
-  /// Total steps in `[start, end)`. Uses the platform's aggregate, which
-  /// already de-duplicates a phone and a watch counting the same steps;
-  /// falls back to summing raw samples (which may over-count).
+  /// Total steps in `[start, end)`. Android prefers Samsung Health's own count
+  /// (see [_preferredStepSources]); otherwise the platform aggregate, then a
+  /// sum of raw samples (which may over-count) as the last resort.
   Future<int?> readSteps(DateTime start, DateTime end) async {
     if (!isSupportedPlatform || !end.isAfter(start)) return null;
+    final Map<String, int>? perDay = await _healthConnectDailySteps(start, end);
+    if (perDay != null) {
+      return perDay.values.fold<int>(0, (int sum, int s) => sum + s);
+    }
     try {
       await _ensureConfigured();
     } catch (_) {
@@ -255,6 +267,21 @@ class HealthService {
       for (int i = days - 1; i >= 0; i--)
         DateTime(today.year, today.month, today.day - i),
     ];
+    if (dayStarts.isEmpty) return const <({DateTime day, int? steps})>[];
+
+    // One Health Connect call for the whole range. A day without records is
+    // a real 0, not "unknown", once the read itself succeeded.
+    final Map<String, int>? perDay = await _healthConnectDailySteps(
+      dayStarts.first,
+      now,
+    );
+    if (perDay != null) {
+      return <({DateTime day, int? steps})>[
+        for (final DateTime day in dayStarts)
+          (day: day, steps: perDay[HealthDaySummary.keyFor(day)] ?? 0),
+      ];
+    }
+
     final List<int?> totals = await Future.wait(
       dayStarts.map((DateTime start) {
         final DateTime next = DateTime(start.year, start.month, start.day + 1);
@@ -265,6 +292,34 @@ class HealthService {
       for (int i = 0; i < dayStarts.length; i++)
         (day: dayStarts[i], steps: totals[i]),
     ];
+  }
+
+  /// Android only: `yyyy-MM-dd` → steps for each day in `[start, end)`, or
+  /// null when Health Connect could not be read through the bridge.
+  Future<Map<String, int>?> _healthConnectDailySteps(
+    DateTime start,
+    DateTime end,
+  ) async {
+    if (_isIOS) return null;
+    final List<StepDayTotals>? days = await HealthPermissionBridge.dailySteps(
+      start,
+      end,
+      preferredSources: _preferredStepSources,
+    );
+    if (days == null) return null;
+    final Map<String, int> out = <String, int>{};
+    for (final StepDayTotals day in days) {
+      final int picked = pickDailySteps(day, _preferredStepSources);
+      out[day.dateKey] = picked;
+      if (picked != day.total) {
+        HealthPermissionBridge.log(
+          'steps ${day.dateKey}: using $picked from preferred source, '
+          'Health Connect merged ${day.total} '
+          '(sources=${day.sources.join(",")})',
+        );
+      }
+    }
+    return out;
   }
 
   /// The night that belongs to [day] (18:00 the evening before → 18:00).
@@ -324,6 +379,17 @@ class HealthService {
     );
     return summary;
   }
+}
+
+/// The first [preferred] app that contributed to [day] supplies the count;
+/// otherwise Health Connect's merged total is used.
+@visibleForTesting
+int pickDailySteps(StepDayTotals day, List<String> preferred) {
+  for (final String source in preferred) {
+    final int? own = day.bySource[source];
+    if (own != null && day.sources.contains(source)) return own;
+  }
+  return day.total;
 }
 
 /// Turns raw per-type sleep intervals into one night. Pure, so it is easy to

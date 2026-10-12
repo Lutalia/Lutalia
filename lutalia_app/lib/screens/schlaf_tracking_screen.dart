@@ -12,7 +12,7 @@ class SchlafTrackingScreen extends StatefulWidget {
 }
 
 class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // Slider & Phasen State
   double sleepHours = 7.5;
   int deepSleepMinutes = 120;
@@ -37,89 +37,23 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
   late final PageController _tipsController;
   int _currentTipPage = 0;
 
-  // Ausgewählter Tag in der Timeline (Standard: heute, 24.09.2026 - Index 4)
-  int _selectedDayIndex = 4;
-
-  // Mock-Daten für die Timeline: Alle Tage außer dem heutigen (Index 4) haben 0 Werte
-  final List<Map<String, dynamic>> _weeklyData = [
-    {
-      'date': '20.09',
-      'day': 'So',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Keine Aufzeichnung',
-      'influences': [],
-    },
-    {
-      'date': '21.09',
-      'day': 'Mo',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Keine Aufzeichnung',
-      'influences': [],
-    },
-    {
-      'date': '22.09',
-      'day': 'Di',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Keine Aufzeichnung',
-      'influences': [],
-    },
-    {
-      'date': '23.09',
-      'day': 'Mi',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Keine Aufzeichnung',
-      'influences': [],
-    },
-    {
-      'date': '24.09',
-      'day': 'Do',
-      'score': 78.0, // Nur der heutige Tag (Index 4) wird dynamisch berechnet
-      'hours': 7.0,
-      'deep': 95,
-      'rem': 85,
-      'awake': 20,
-      'quality': 'Solide',
-      'influences': ['Spätes Workout'],
-    },
-    {
-      'date': '25.09',
-      'day': 'Fr',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Ausstehend',
-      'influences': [],
-    },
-    {
-      'date': '26.09',
-      'day': 'Sa',
-      'score': 0.0,
-      'hours': 0.0,
-      'deep': 0,
-      'rem': 0,
-      'awake': 0,
-      'quality': 'Ausstehend',
-      'influences': [],
-    },
+  // Timeline: vergangene Nächte, heute (letzte Nacht) und zwei Tage Prognose.
+  static const int _pastNights = 4;
+  static const int _futureDays = 2;
+  static const int _todayIndex = _pastNights;
+  static const List<String> _weekdayShort = [
+    'Mo',
+    'Di',
+    'Mi',
+    'Do',
+    'Fr',
+    'Sa',
+    'So',
   ];
+
+  int _selectedDayIndex = _todayIndex;
+
+  late List<Map<String, dynamic>> _weeklyData = _buildWeek(DateTime.now());
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -127,10 +61,12 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
   // Apple Health / Health Connect
   bool _isSyncing = false;
   HealthDaySummary? _healthDay;
+  Future<void>? _refreshing;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadHealthOnOpen();
     _tipsController = PageController();
     _pulseController = AnimationController(
@@ -149,11 +85,17 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
     _tipsController.dispose();
     _customInfluenceController.dispose();
     _customInfluenceNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshHealthSilently();
   }
 
   /// Cached values first (instant, offline), then a silent platform refresh
@@ -164,9 +106,41 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     );
     if (!mounted) return;
     _applyHealthDay(cached);
+    await _refreshHealthSilently();
+  }
+
+  Future<void> _refreshHealthSilently() =>
+      _refreshing ??= _refreshHealth().whenComplete(() => _refreshing = null);
+
+  Future<void> _refreshHealth() async {
+    final DateTime now = DateTime.now();
+    final DateTime shownToday = _weeklyData[_todayIndex]['dateTime'];
+    if (shownToday.day != now.day ||
+        shownToday.month != now.month ||
+        shownToday.year != now.year) {
+      setState(() {
+        _weeklyData = _buildWeek(now);
+        _selectedDayIndex = _todayIndex;
+      });
+    }
     final HealthDaySummary? fresh = await HealthSyncService.refreshToday();
     if (!mounted) return;
     _applyHealthDay(fresh);
+    await _loadSleepHistory();
+  }
+
+  Future<void> _loadSleepHistory() async {
+    final List<({DateTime day, SleepSummary? sleep})> nights =
+        await HealthSyncService.loadSleepHistory(_pastNights);
+    if (!mounted) return;
+    setState(() {
+      for (final night in nights) {
+        final int index = _indexOfDay(night.day);
+        if (index >= 0 && index < _todayIndex) {
+          _fillPastNight(_weeklyData[index], night.sleep);
+        }
+      }
+    });
   }
 
   Future<void> _syncHealth() async {
@@ -177,6 +151,59 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     setState(() => _isSyncing = false);
     _applyHealthDay(result.today);
     _showHealthMessage(result.outcome);
+    if (result.isSuccess) await _loadSleepHistory();
+  }
+
+  /// One timeline entry per day, today at [_todayIndex].
+  List<Map<String, dynamic>> _buildWeek(DateTime now) {
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    return List<Map<String, dynamic>>.generate(_pastNights + 1 + _futureDays, (
+      int i,
+    ) {
+      final DateTime day = DateTime(
+        today.year,
+        today.month,
+        today.day + i - _todayIndex,
+      );
+      return <String, dynamic>{
+        'dateTime': day,
+        'date':
+            '${day.day.toString().padLeft(2, '0')}.'
+            '${day.month.toString().padLeft(2, '0')}',
+        'day': _weekdayShort[day.weekday - 1],
+        'score': 0.0,
+        'hours': 0.0,
+        'deep': 0,
+        'rem': 0,
+        'awake': 0,
+        'quality': i > _todayIndex ? 'Ausstehend' : 'Keine Aufzeichnung',
+        'influences': <String>[],
+        'sleep': null,
+      };
+    });
+  }
+
+  int _indexOfDay(DateTime day) => _weeklyData.indexWhere((entry) {
+    final DateTime d = entry['dateTime'];
+    return d.year == day.year && d.month == day.month && d.day == day.day;
+  });
+
+  /// Past nights carry no influences (those are only tracked for today).
+  void _fillPastNight(Map<String, dynamic> entry, SleepSummary? sleep) {
+    if (sleep == null) return;
+    final double hours = double.parse(sleep.asleepHours.toStringAsFixed(1));
+    final int deep = sleep.deepMinutes ?? 0;
+    final int rem = sleep.remMinutes ?? 0;
+    final int awake = sleep.awakeMinutes ?? 0;
+    final double score = _sleepScore(hours, deep, rem, awake);
+    entry
+      ..['sleep'] = sleep
+      ..['hours'] = hours
+      ..['deep'] = deep
+      ..['rem'] = rem
+      ..['awake'] = awake
+      ..['score'] = score
+      ..['quality'] = _getQualityText(score);
   }
 
   /// Real values replace the manual defaults only when a night was recorded.
@@ -234,6 +261,9 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     return at == null ? fallback : HealthTexts.clock(at);
   }
 
+  String _clockOrNoData(DateTime? at) =>
+      at == null ? HealthTexts.noData : HealthTexts.clock(at);
+
   double _calculatePerfectSleepScore(
     double hours,
     int deepMin,
@@ -241,6 +271,24 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     int awakeMin,
     String customInf,
   ) {
+    double totalScore = _sleepScore(hours, deepMin, remMin, awakeMin);
+
+    if (lateScreenTime) totalScore -= 3.0;
+    if (heavyMeal) totalScore -= 4.0;
+    if (lateCaffeine) totalScore -= 4.0;
+    if (lateWorkout) totalScore -= 2.0;
+    if (alcohol) totalScore -= 6.0;
+    if (highStress) totalScore -= 5.0;
+    if (racingThoughts) totalScore -= 4.0;
+    if (customInf.trim().isNotEmpty) totalScore -= 3.0;
+
+    if (totalScore > 100.0) return 100.0;
+    if (totalScore < 0.0) return 0.0;
+    return totalScore;
+  }
+
+  /// Score from the recorded night alone, without the evening influences.
+  double _sleepScore(double hours, int deepMin, int remMin, int awakeMin) {
     double durationScore = 40.0;
     if (hours < 7.5) {
       durationScore = (hours / 7.5) * 40.0;
@@ -259,20 +307,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     if (awakeScore < 0) awakeScore = 0;
     if (awakeScore > 15.0) awakeScore = 15.0;
 
-    double totalScore = durationScore + deepScore + remScore + awakeScore;
-
-    if (lateScreenTime) totalScore -= 3.0;
-    if (heavyMeal) totalScore -= 4.0;
-    if (lateCaffeine) totalScore -= 4.0;
-    if (lateWorkout) totalScore -= 2.0;
-    if (alcohol) totalScore -= 6.0;
-    if (highStress) totalScore -= 5.0;
-    if (racingThoughts) totalScore -= 4.0;
-    if (customInf.trim().isNotEmpty) totalScore -= 3.0;
-
-    if (totalScore > 100.0) return 100.0;
-    if (totalScore < 0.0) return 0.0;
-    return totalScore;
+    return durationScore + deepScore + remScore + awakeScore;
   }
 
   String _getQualityText(double score) {
@@ -297,12 +332,12 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
         );
 
         // Aktualisiere exklusiv den heutigen Tag (Index 4)
-        _weeklyData[4]['score'] = calculatedScore;
-        _weeklyData[4]['hours'] = sleepHours;
-        _weeklyData[4]['deep'] = deepSleepMinutes;
-        _weeklyData[4]['rem'] = remSleepMinutes;
-        _weeklyData[4]['awake'] = awakeMinutes;
-        _weeklyData[4]['quality'] = _getQualityText(calculatedScore);
+        _weeklyData[_todayIndex]['score'] = calculatedScore;
+        _weeklyData[_todayIndex]['hours'] = sleepHours;
+        _weeklyData[_todayIndex]['deep'] = deepSleepMinutes;
+        _weeklyData[_todayIndex]['rem'] = remSleepMinutes;
+        _weeklyData[_todayIndex]['awake'] = awakeMinutes;
+        _weeklyData[_todayIndex]['quality'] = _getQualityText(calculatedScore);
 
         List<String> currentInfluences = [];
         if (lateScreenTime) currentInfluences.add('Späte Bildschirmzeit');
@@ -315,7 +350,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
         if (customInfVal.trim().isNotEmpty) {
           currentInfluences.add(customInfVal.trim());
         }
-        _weeklyData[4]['influences'] = currentInfluences;
+        _weeklyData[_todayIndex]['influences'] = currentInfluences;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF5F0EB),
@@ -1386,9 +1421,15 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
     double score = dayData['score'];
     String quality = dayData['quality'];
     bool hasData = score > 0;
-    final bool isToday = identical(dayData, _weeklyData[4]);
-    final String bedtime = isToday ? _bedtimeText('23:15 Uhr') : '23:15 Uhr';
-    final String wakeTime = isToday ? _wakeTimeText('06:45 Uhr') : '06:45 Uhr';
+    final bool isToday = identical(dayData, _weeklyData[_todayIndex]);
+    final SleepSummary? pastSleep = dayData['sleep'];
+    final String bedtime = isToday
+        ? _bedtimeText('23:15 Uhr')
+        : _clockOrNoData(pastSleep?.bedtime);
+    final String wakeTime = isToday
+        ? _wakeTimeText('06:45 Uhr')
+        : _clockOrNoData(pastSleep?.wakeTime);
+    final DateTime date = dayData['dateTime'];
 
     showModalBottomSheet(
       context: context,
@@ -1421,7 +1462,7 @@ class _SchlafTrackingScreenState extends State<SchlafTrackingScreen>
                   Row(
                     children: [
                       Text(
-                        'TAGES-DETAILS: ${dayData['date']}.2026',
+                        'TAGES-DETAILS: ${dayData['date']}.${date.year}',
                         style: const TextStyle(
                           color: Color(0xFF4A3B32),
                           fontSize: 16,

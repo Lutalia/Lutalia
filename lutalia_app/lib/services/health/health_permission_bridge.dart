@@ -29,8 +29,19 @@ class HealthConnectPermission {
   final List<HealthDataType> types;
 }
 
+/// One local calendar day of Health Connect steps.
+///
+/// [total] is Health Connect's own merged sum; [bySource] holds the per-app
+/// totals that were requested as preferred sources and contributed that day.
+typedef StepDayTotals = ({
+  String dateKey,
+  int total,
+  Set<String> sources,
+  Map<String, int> bySource,
+});
+
 /// Android-only channel into `MainActivity` for the Health Connect permission
-/// sheet, grant lookup, availability and settings.
+/// sheet, grant lookup, availability, settings and per-source step totals.
 ///
 /// The `health` plugin's own launcher is often null when a request arrives
 /// and then reports "denied" without showing anything, so the request goes
@@ -67,6 +78,8 @@ class HealthPermissionBridge {
 
   static const String stepsPermission = 'android.permission.health.READ_STEPS';
   static const String sleepPermission = 'android.permission.health.READ_SLEEP';
+
+  static const String samsungHealthPackage = 'com.sec.android.app.shealth';
 
   static bool get isSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -139,6 +152,51 @@ class HealthPermissionBridge {
       return null;
     }
   }
+
+  /// Steps per local day in `[start, end)`, or null when Health Connect could
+  /// not be read (no access, channel failure) so the caller can fall back.
+  /// Days without any record may be missing from the list.
+  static Future<List<StepDayTotals>?> dailySteps(
+    DateTime start,
+    DateTime end, {
+    List<String> preferredSources = const <String>[],
+  }) async {
+    if (!isSupported || !end.isAfter(start)) return null;
+    try {
+      final Object? reply = await _channel
+          .invokeMethod<Object?>('readDailySteps', <String, dynamic>{
+            'start': start.millisecondsSinceEpoch,
+            'end': end.millisecondsSinceEpoch,
+            'preferredSources': preferredSources,
+          });
+      if (reply is! Map || reply['ok'] != true || reply['days'] is! List) {
+        log('dailySteps failed: $reply');
+        return null;
+      }
+      return <StepDayTotals>[
+        for (final Object? day in reply['days'] as List)
+          if (day is Map && day['date'] is String)
+            (
+              dateKey: day['date'] as String,
+              total: _intOf(day['total']),
+              sources: _stringsOf(day['sources']),
+              bySource: <String, int>{
+                if (day['bySource'] is Map)
+                  for (final MapEntry<Object?, Object?> e
+                      in (day['bySource'] as Map).entries)
+                    if (e.key is String) e.key as String: _intOf(e.value),
+              },
+            ),
+      ];
+    } on PlatformException catch (e) {
+      log('dailySteps failed: ${e.code} ${e.message}');
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  static int _intOf(Object? value) => value is num ? value.round() : 0;
 
   static Future<bool> openSettings() => _invokeBool('openPermissions');
 

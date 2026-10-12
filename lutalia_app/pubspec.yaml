@@ -36,7 +36,7 @@ dependencies:
   openfoodfacts: ^3.30.2
 
   # ✨ Barcode Scanner
-  mobile_scanner: ^3.5.5
+  mobile_scanner: ^7.4.2
 
   # ✨ HTTP & HTML Rendering (für WordPress Rezepte)
   http: ^1.2.1

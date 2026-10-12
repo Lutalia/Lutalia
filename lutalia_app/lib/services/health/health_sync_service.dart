@@ -174,6 +174,46 @@ class HealthSyncService {
     return out;
   }
 
+  /// Sleep for the [nights] nights before last night, oldest first (last
+  /// night itself comes from [refreshToday]). Each night is stored under the
+  /// day it ends on, so history survives even after Health Connect / Apple
+  /// Health drop old records. Nights the platform cannot answer fall back to
+  /// stored values. Never prompts.
+  static Future<List<({DateTime day, SleepSummary? sleep})>> loadSleepHistory(
+    int nights,
+  ) async {
+    final DateTime now = DateTime.now();
+    final List<DateTime> days = <DateTime>[
+      for (int i = nights; i >= 1; i--)
+        DateTime(now.year, now.month, now.day - i),
+    ];
+    final bool canRead =
+        HealthService.isSupportedPlatform &&
+        await isConnected() &&
+        await _availabilityBlocker() == null;
+    final List<SleepSummary?> read = canRead
+        ? await Future.wait(days.map(_platform.readSleep))
+        : List<SleepSummary?>.filled(days.length, null);
+
+    final List<({DateTime day, SleepSummary? sleep})> out =
+        <({DateTime day, SleepSummary? sleep})>[];
+    for (int i = 0; i < days.length; i++) {
+      final SleepSummary? fresh = read[i];
+      final SleepSummary? sleep = fresh != null
+          ? (await _save(
+              HealthDaySummary(
+                dateKey: HealthDaySummary.keyFor(days[i]),
+                sleep: fresh,
+                source: _platform.source,
+                syncedAt: now,
+              ),
+            )).sleep
+          : (await cachedDay(days[i]))?.sleep;
+      out.add((day: days[i], sleep: sleep));
+    }
+    return out;
+  }
+
   static Future<HealthDaySummary?> cachedDay(DateTime day) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? raw = prefs.getString(_dayKey(HealthDaySummary.keyFor(day)));

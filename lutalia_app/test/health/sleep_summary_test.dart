@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 import 'package:lutalia/models/health_day_summary.dart';
+import 'package:lutalia/services/health/health_permission_bridge.dart';
 import 'package:lutalia/services/health/health_service.dart';
 import 'package:lutalia/utils/sleep_window.dart';
 
@@ -115,6 +116,42 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('pickDailySteps', () {
+    const String samsung = HealthPermissionBridge.samsungHealthPackage;
+    const String googleFit = 'com.google.android.apps.fitness';
+    const List<String> preferred = <String>[samsung];
+
+    test('uses Samsung Health over the inflated merged total', () {
+      final StepDayTotals day = (
+        dateKey: '2026-10-11',
+        total: 12400,
+        sources: <String>{samsung, googleFit},
+        bySource: <String, int>{samsung: 8400},
+      );
+      expect(pickDailySteps(day, preferred), 8400);
+    });
+
+    test('falls back to the merged total without Samsung Health', () {
+      final StepDayTotals day = (
+        dateKey: '2026-10-11',
+        total: 5300,
+        sources: <String>{googleFit},
+        bySource: const <String, int>{},
+      );
+      expect(pickDailySteps(day, preferred), 5300);
+    });
+
+    test('ignores a preferred count for a source that did not contribute', () {
+      final StepDayTotals day = (
+        dateKey: '2026-10-11',
+        total: 5300,
+        sources: <String>{googleFit},
+        bySource: <String, int>{samsung: 0},
+      );
+      expect(pickDailySteps(day, preferred), 5300);
     });
   });
 
