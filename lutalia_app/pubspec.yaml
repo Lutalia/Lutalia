@@ -11,6 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # ✨ AUDIO PLAYER (just_audio für stabile Wiedergabe)
+  just_audio: ^0.10.6
+
+  # ✨ AUDIO PLAYER (alternativ / Legacy)
+  audioplayers: ^6.0.0
+
   # ⭐ FemBalance / Kalender
   table_calendar: ^3.0.9
   shared_preferences: ^2.2.2
@@ -65,7 +71,7 @@ dependencies:
   # ✨ Schreibmaschinen-Animation
   animated_text_kit: ^4.2.2
 
-  # ✨ AUDIO
+  # ✨ AUDIO (falls noch benötigt)
   flutter_sound: ^9.2.13
 
   # ✨ PERMISSIONS
@@ -105,8 +111,11 @@ flutter:
     - assets/data/
     - assets/images/sparkle_star.png
     - assets/images/lutalia_start.png
-    # Falls iconapp.png im Hauptverzeichnis unter assets/ liegt:
     - assets/iconapp.png
+    - assets/sleeptracking/sleepdeer.png
+    
+    # ⭐ AUDIO (inklusive des neuen Players / Ordners)
+    - assets/audio/
 
     # ⭐ VIDEOS
     - assets/videos/Weil-es-gluecklich-macht.mp4

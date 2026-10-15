@@ -11,6 +11,7 @@ import 'shop_screen.dart';
 import 'personal_screen.dart';
 import 'wasser_screen.dart';
 import '../main.dart';
+import '../services/health/health_sync_service.dart'; // ⭐ Wichtig für Health Connect
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -120,6 +121,8 @@ class _HomeScreenState extends State<HomeScreen>
       rightTextController.forward();
     });
 
+    _loadHealthData(); // ⭐ Lädt Schritte und Schlaf direkt beim Start
+
     if (uid != null) {
       _loadWaterToday();
       _loadNutritionToday();
@@ -134,11 +137,26 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didPopNext() {
+    _loadHealthData(); // ⭐ Aktualisiert Health-Daten, wenn man zurückkehrt
     if (uid != null) {
       _loadNutritionToday();
       _loadWaterToday();
     }
     setState(() {});
+  }
+
+  /// ⭐ Lädt die echten heutigen Schritte und den Schlaf der letzten Nacht aus dem Cache / Health Connect
+  Future<void> _loadHealthData() async {
+    final now = DateTime.now();
+    final cached = await HealthSyncService.cachedDay(now);
+    if (!mounted) return;
+
+    if (cached != null) {
+      setState(() {
+        steps = cached.steps ?? 0;
+        sleepHours = cached.sleep?.asleepHours ?? 0.0;
+      });
+    }
   }
 
   Future<void> _loadWaterToday() async {
@@ -691,7 +709,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const SizedBox(height: 6),
           const Text(
-            "Schrittdaten werden später verbunden",
+            "Live aus Health Connect synchronisiert",
             style: TextStyle(
               fontFamily: "Cinzel",
               fontSize: 12,
@@ -742,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const SizedBox(height: 6),
           const Text(
-            "Schlafdaten werden später verbunden",
+            "Letzte Nacht aus Health Connect",
             style: TextStyle(
               fontFamily: "Cinzel",
               fontSize: 12,

@@ -18,12 +18,12 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController textController;
   late Animation<double> textOpacity;
 
-  late AnimationController oliveController;
+  late AnimationController lotusController;
 
   final List<_DustParticle> fairyDust = [];
   final Random random = Random();
 
-  bool _skipped = false; // ⭐ verhindert doppeltes Navigieren
+  bool _skipped = false;
 
   @override
   void initState() {
@@ -47,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
 
-    oliveController = AnimationController(
+    lotusController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 8),
     )
@@ -61,7 +61,6 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) textController.forward();
     });
 
-    // ⭐ Automatischer Übergang nach 9 Sekunden
     SchedulerBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 9), () {
         _skipSplash();
@@ -80,11 +79,11 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     logoController.dispose();
     textController.dispose();
-    oliveController.dispose();
+    lotusController.dispose();
     super.dispose();
   }
 
-  // ❤️ Herzpfad
+  // ❤️ Perfekt ausbalancierte Herz-Größe (etwas größer als vorher, aber elegant)
   Offset heartPath(double t, double w, double h) {
     final x = 16 * pow(sin(t), 3);
     final y = 13 * cos(t) -
@@ -92,9 +91,9 @@ class _SplashScreenState extends State<SplashScreen>
         2 * cos(3 * t) -
         cos(4 * t);
 
-    final scale = w * 0.022;
+    final scale = w * 0.024; // Sanft vergrößert für die ideale Proportion
     final centerX = w * 0.5;
-    final centerY = h * 0.45;
+    final centerY = h * 0.42;
 
     return Offset(centerX + x * scale, centerY - y * scale);
   }
@@ -107,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
     final feeHead = Offset(w * 0.68, h * 0.28);
 
     Offset pos;
-    final t = oliveController.value;
+    final t = lotusController.value;
 
     if (t <= 0.8) {
       final heartT = (t / 0.8) * 2 * pi;
@@ -118,34 +117,19 @@ class _SplashScreenState extends State<SplashScreen>
             cos(heartT * 2) * 2,
           );
 
-      for (int i = 0; i < 26; i++) {
+      for (int i = 0; i < 20; i++) {
         fairyDust.add(
           _DustParticle(
             position: pos +
                 Offset(
-                  random.nextDouble() * 14 - 7,
-                  random.nextDouble() * 14 - 7,
+                  random.nextDouble() * 12 - 6,
+                  random.nextDouble() * 12 - 6,
                 ),
-            size: 3 + random.nextDouble() * 4,
+            size: 3 + random.nextDouble() * 3,
             opacity: 0.40 + random.nextDouble() * 0.35,
             color: const Color(0xFFF3E9E2),
             life: random.nextDouble(),
             isGlow: false,
-          ),
-        );
-
-        fairyDust.add(
-          _DustParticle(
-            position: pos +
-                Offset(
-                  random.nextDouble() * 20 - 10,
-                  random.nextDouble() * 20 - 10,
-                ),
-            size: 6 + random.nextDouble() * 8,
-            opacity: 0.10 + random.nextDouble() * 0.15,
-            color: Colors.white,
-            life: random.nextDouble(),
-            isGlow: true,
           ),
         );
       }
@@ -156,9 +140,8 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque, // ⭐ GANZER SCREEN tappbar
-      onTap: _skipSplash,               // ⭐ Tap → sofort weiter
-
+      behavior: HitTestBehavior.opaque,
+      onTap: _skipSplash,
       child: Scaffold(
         backgroundColor: LutaliaTheme.creme,
         body: Stack(
@@ -182,12 +165,14 @@ class _SplashScreenState extends State<SplashScreen>
               );
             }).toList(),
 
+            // Feines, elegantes Lotusblatt-Symbol
             Positioned(
               left: pos.dx,
               top: pos.dy,
-              child: Image.asset(
-                'assets/images/olive.png',
-                width: 55,
+              child: const Icon(
+                Icons.eco, // Filigraner, eleganter Look
+                color: Color(0xFFC89B7B),
+                size: 30,  // Dezent und fein gehalten
               ),
             ),
 
